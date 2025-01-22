@@ -24,7 +24,7 @@ RUN wget -q https://github.com/catchorg/Catch2/archive/refs/tags/v3.7.1.zip && \
   cmake --build build/ --target install
 
 # Install python3
-RUN apt-get install -y python3 python3-pip python3-full
+RUN apt-get install -y python3 python3-pip python3-full valgrind
 
 # Install gcovr
 RUN pip3 install gcovr --break-system-packages
