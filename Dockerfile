@@ -3,7 +3,6 @@ FROM gcc:latest
 # Set the working directory
 WORKDIR /app
 
-
 # Install CMake
 RUN apt-get update && apt-get install -y wget && \
   ARCH=$(uname -m) && \
