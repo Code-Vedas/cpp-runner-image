@@ -7,12 +7,12 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y wget && \
   ARCH=$(uname -m) && \
   if [ "$ARCH" = "aarch64" ]; then \
-  wget -q https://github.com/Kitware/CMake/releases/download/v4.0.2/cmake-4.0.2-linux-aarch64.sh; \
+  wget -q https://github.com/Kitware/CMake/releases/download/v4.0.3/cmake-4.0.3-linux-aarch64.sh; \
   else \
-  wget -q https://github.com/Kitware/CMake/releases/download/v4.0.2/cmake-4.0.2-linux-x86_64.sh; \
+  wget -q https://github.com/Kitware/CMake/releases/download/v4.0.3/cmake-4.0.3-linux-x86_64.sh; \
   fi && \
-  chmod +x cmake-4.0.2-linux-*.sh && \
-  ./cmake-4.0.2-linux-*.sh --skip-license --prefix=/usr/local && \
+  chmod +x cmake-4.0.3-linux-*.sh && \
+  ./cmake-4.0.3-linux-*.sh --skip-license --prefix=/usr/local && \
   ln -s /usr/local/bin/cmake /usr/bin/cmake
 
 # Install Catch2
