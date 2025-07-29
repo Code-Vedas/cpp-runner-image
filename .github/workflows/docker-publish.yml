@@ -97,6 +97,9 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          # Enable ARM64 build optimizations
+          provenance: false
+          sbom: false
           build-args: |
             CMAKE_VERSION=${{ steps.cmake_version.outputs.version }}
             CATCH2_VERSION=${{ steps.catch2_version.outputs.version }}

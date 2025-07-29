@@ -1,0 +1,17 @@
+# Git files
+.git
+.gitignore
+
+# CI/CD files that don't need to be in build context
+.github/
+
+# Documentation
+README.md
+CODE_OF_CONDUCT.md
+CONTRIBUTING.md
+SECURITY.md
+LICENSE
+
+# Any temporary files
+*.tmp
+*.log
