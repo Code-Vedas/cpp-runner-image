@@ -64,27 +64,6 @@ The image sets the following environment variables to optimize builds:
 - `MAKEFLAGS="-j$(nproc)"` - Enables parallel make builds
 - `CMAKE_BUILD_PARALLEL_LEVEL=$(nproc)` - Enables parallel CMake builds
 
-## CI/CD Pipeline
-
-The project uses a multi-job GitHub Actions workflow that separates build and publish operations for better parallelization and control:
-
-### Build Jobs
-- **build-amd64**: Tests building for linux/amd64 on PRs, main branch, and tags
-- **build-arm64**: Tests building for linux/arm64 on PRs, main branch, and tags
-- Build jobs validate the Docker image can be built successfully but don't publish to registry
-
-### Publish Jobs  
-- **publish-amd64**: Builds and publishes linux/amd64 images on scheduled runs and main branch pushes
-- **publish-arm64**: Builds and publishes linux/arm64 images on scheduled runs and main branch pushes
-- **create-manifest**: Combines both architecture-specific images into a multi-architecture manifest
-
-### Benefits
-- **Parallel Execution**: Each architecture builds independently for faster CI/CD
-- **Clear Separation**: Build validation separate from publishing reduces complexity
-- **Architecture-Specific Control**: Individual job control and troubleshooting per architecture
-- **Optimized Caching**: Separate cache scopes for each architecture improve build performance
-- **Multi-arch Support**: Final images support both amd64 and arm64 architectures seamlessly
-
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

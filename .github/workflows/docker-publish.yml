@@ -23,100 +23,8 @@ env:
 
 
 jobs:
-  # Build jobs for PRs, main, and tags - no publishing
-  build-amd64:
-    if: github.event_name == 'pull_request' || (github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')))
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
+  build:
 
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      # Fetch latest versions of CMake and Catch2
-      - name: Get latest CMake version
-        id: cmake_version
-        run: |
-          CMAKE_VERSION=$(curl -s https://api.github.com/repos/Kitware/CMake/releases/latest | jq -r '.tag_name')
-          echo "version=$CMAKE_VERSION" >> $GITHUB_OUTPUT
-          echo "Latest CMake version: $CMAKE_VERSION"
-
-      - name: Get latest Catch2 version
-        id: catch2_version
-        run: |
-          CATCH2_VERSION=$(curl -s https://api.github.com/repos/catchorg/Catch2/releases/latest | jq -r '.tag_name')
-          echo "version=$CATCH2_VERSION" >> $GITHUB_OUTPUT
-          echo "Latest Catch2 version: $CATCH2_VERSION"
-
-      # Set up BuildKit Docker container builder
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@f95db51fddba0c2d1ec667646a06c2ce06100226 # v3.0.0
-
-      # Build Docker image for amd64 (no push)
-      - name: Build Docker image (amd64)
-        uses: docker/build-push-action@0565240e2d4ab88bba5387d719585280857ece09 # v5.0.0
-        with:
-          context: .
-          platforms: linux/amd64
-          push: false
-          cache-from: type=gha,scope=amd64
-          cache-to: type=gha,mode=max,scope=amd64
-          # Enable build optimizations
-          provenance: false
-          sbom: false
-          build-args: |
-            CMAKE_VERSION=${{ steps.cmake_version.outputs.version }}
-            CATCH2_VERSION=${{ steps.catch2_version.outputs.version }}
-
-  build-arm64:
-    if: github.event_name == 'pull_request' || (github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')))
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      # Fetch latest versions of CMake and Catch2
-      - name: Get latest CMake version
-        id: cmake_version
-        run: |
-          CMAKE_VERSION=$(curl -s https://api.github.com/repos/Kitware/CMake/releases/latest | jq -r '.tag_name')
-          echo "version=$CMAKE_VERSION" >> $GITHUB_OUTPUT
-          echo "Latest CMake version: $CMAKE_VERSION"
-
-      - name: Get latest Catch2 version
-        id: catch2_version
-        run: |
-          CATCH2_VERSION=$(curl -s https://api.github.com/repos/catchorg/Catch2/releases/latest | jq -r '.tag_name')
-          echo "version=$CATCH2_VERSION" >> $GITHUB_OUTPUT
-          echo "Latest Catch2 version: $CATCH2_VERSION"
-
-      # Set up BuildKit Docker container builder
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@f95db51fddba0c2d1ec667646a06c2ce06100226 # v3.0.0
-
-      # Build Docker image for arm64 (no push)
-      - name: Build Docker image (arm64)
-        uses: docker/build-push-action@0565240e2d4ab88bba5387d719585280857ece09 # v5.0.0
-        with:
-          context: .
-          platforms: linux/arm64
-          push: false
-          cache-from: type=gha,scope=arm64
-          cache-to: type=gha,mode=max,scope=arm64
-          # Enable ARM64 build optimizations
-          provenance: false
-          sbom: false
-          build-args: |
-            CMAKE_VERSION=${{ steps.cmake_version.outputs.version }}
-            CATCH2_VERSION=${{ steps.catch2_version.outputs.version }}
-
-  # Publish jobs for schedule and main - with publishing
-  publish-amd64:
-    if: github.event_name == 'schedule' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -144,18 +52,24 @@ jobs:
           echo "version=$CATCH2_VERSION" >> $GITHUB_OUTPUT
           echo "Latest Catch2 version: $CATCH2_VERSION"
 
-      # Install the cosign tool
+      # Install the cosign tool except on PR
+      # https://github.com/sigstore/cosign-installer
       - name: Install cosign
+        if: github.event_name != 'pull_request'
         uses: sigstore/cosign-installer@59acb6260d9c0ba8f4a2f9d9b48431a222b68e20 #v3.5.0
         with:
           cosign-release: 'v2.2.4'
 
-      # Set up BuildKit Docker container builder
+      # Set up BuildKit Docker container builder to be able to build
+      # multi-platform images and export cache
+      # https://github.com/docker/setup-buildx-action
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@f95db51fddba0c2d1ec667646a06c2ce06100226 # v3.0.0
 
-      # Login against Docker registry
+      # Login against a Docker registry except on PR
+      # https://github.com/docker/login-action
       - name: Log into registry ${{ env.REGISTRY }}
+        if: github.event_name != 'pull_request'
         uses: docker/login-action@343f7c4344506bcbf9b4de18042ae17996df046d # v3.0.0
         with:
           registry: ${{ env.REGISTRY }}
@@ -163,108 +77,26 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       # Extract metadata (tags, labels) for Docker
+      # https://github.com/docker/metadata-action
       - name: Extract Docker metadata
         id: meta
         uses: docker/metadata-action@96383f45573cb7f253c731d3b3ab81c87ef81934 # v5.0.0
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          flavor: |
-            suffix=-amd64
 
-      # Build and push Docker image for amd64
-      - name: Build and push Docker image (amd64)
+      # Build and push Docker image with Buildx (don't push on PR)
+      # https://github.com/docker/build-push-action
+      - name: Build and push Docker image
         id: build-and-push
         uses: docker/build-push-action@0565240e2d4ab88bba5387d719585280857ece09 # v5.0.0
         with:
           context: .
-          platforms: linux/amd64
-          push: true
+          platforms: linux/amd64,linux/arm64
+          push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha,scope=amd64
-          cache-to: type=gha,mode=max,scope=amd64
-          # Enable build optimizations
-          provenance: false
-          sbom: false
-          build-args: |
-            CMAKE_VERSION=${{ steps.cmake_version.outputs.version }}
-            CATCH2_VERSION=${{ steps.catch2_version.outputs.version }}
-
-      # Sign the published Docker image
-      - name: Sign the published Docker image
-        env:
-          TAGS: ${{ steps.meta.outputs.tags }}
-          DIGEST: ${{ steps.build-and-push.outputs.digest }}
-        run: echo "${TAGS}" | xargs -I {} cosign sign --yes {}@${DIGEST}
-
-  publish-arm64:
-    if: github.event_name == 'schedule' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-      # This is used to complete the identity challenge
-      # with sigstore/fulcio when running outside of PRs.
-      id-token: write
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      # Fetch latest versions of CMake and Catch2
-      - name: Get latest CMake version
-        id: cmake_version
-        run: |
-          CMAKE_VERSION=$(curl -s https://api.github.com/repos/Kitware/CMake/releases/latest | jq -r '.tag_name')
-          echo "version=$CMAKE_VERSION" >> $GITHUB_OUTPUT
-          echo "Latest CMake version: $CMAKE_VERSION"
-
-      - name: Get latest Catch2 version
-        id: catch2_version
-        run: |
-          CATCH2_VERSION=$(curl -s https://api.github.com/repos/catchorg/Catch2/releases/latest | jq -r '.tag_name')
-          echo "version=$CATCH2_VERSION" >> $GITHUB_OUTPUT
-          echo "Latest Catch2 version: $CATCH2_VERSION"
-
-      # Install the cosign tool
-      - name: Install cosign
-        uses: sigstore/cosign-installer@59acb6260d9c0ba8f4a2f9d9b48431a222b68e20 #v3.5.0
-        with:
-          cosign-release: 'v2.2.4'
-
-      # Set up BuildKit Docker container builder
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@f95db51fddba0c2d1ec667646a06c2ce06100226 # v3.0.0
-
-      # Login against Docker registry
-      - name: Log into registry ${{ env.REGISTRY }}
-        uses: docker/login-action@343f7c4344506bcbf9b4de18042ae17996df046d # v3.0.0
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      # Extract metadata (tags, labels) for Docker
-      - name: Extract Docker metadata
-        id: meta
-        uses: docker/metadata-action@96383f45573cb7f253c731d3b3ab81c87ef81934 # v5.0.0
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          flavor: |
-            suffix=-arm64
-
-      # Build and push Docker image for arm64
-      - name: Build and push Docker image (arm64)
-        id: build-and-push
-        uses: docker/build-push-action@0565240e2d4ab88bba5387d719585280857ece09 # v5.0.0
-        with:
-          context: .
-          platforms: linux/arm64
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha,scope=arm64
-          cache-to: type=gha,mode=max,scope=arm64
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
           # Enable ARM64 build optimizations
           provenance: false
           sbom: false
@@ -272,59 +104,17 @@ jobs:
             CMAKE_VERSION=${{ steps.cmake_version.outputs.version }}
             CATCH2_VERSION=${{ steps.catch2_version.outputs.version }}
 
-      # Sign the published Docker image
+      # Sign the resulting Docker image digest except on PRs.
+      # This will only write to the public Rekor transparency log when the Docker
+      # repository is public to avoid leaking data.  If you would like to publish
+      # transparency data even for private images, pass --force to cosign below.
+      # https://github.com/sigstore/cosign
       - name: Sign the published Docker image
+        if: ${{ github.event_name != 'pull_request' }}
         env:
+          # https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions#using-an-intermediate-environment-variable
           TAGS: ${{ steps.meta.outputs.tags }}
           DIGEST: ${{ steps.build-and-push.outputs.digest }}
+        # This step uses the identity token to provision an ephemeral certificate
+        # against the sigstore community Fulcio instance.
         run: echo "${TAGS}" | xargs -I {} cosign sign --yes {}@${DIGEST}
-
-
-  # Create multi-arch manifest combining both architectures
-  create-manifest:
-    if: github.event_name == 'schedule' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
-    needs: [publish-amd64, publish-arm64]
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-      id-token: write
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      # Set up BuildKit Docker container builder
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@f95db51fddba0c2d1ec667646a06c2ce06100226 # v3.0.0
-
-      # Login against Docker registry
-      - name: Log into registry ${{ env.REGISTRY }}
-        uses: docker/login-action@343f7c4344506bcbf9b4de18042ae17996df046d # v3.0.0
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      # Extract metadata (tags, labels) for Docker
-      - name: Extract Docker metadata
-        id: meta
-        uses: docker/metadata-action@96383f45573cb7f253c731d3b3ab81c87ef81934 # v5.0.0
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-
-      # Create and push multi-arch manifest
-      - name: Create and push multi-arch manifest
-        run: |
-          # Get the tags that were created
-          TAGS="${{ steps.meta.outputs.tags }}"
-          
-          for TAG in $TAGS; do
-            echo "Creating manifest for tag: $TAG"
-            
-            # Create manifest list combining both architectures
-            docker buildx imagetools create \
-              --tag "$TAG" \
-              "$TAG-amd64" \
-              "$TAG-arm64"
-          done
