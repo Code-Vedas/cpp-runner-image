@@ -44,7 +44,6 @@ RUN CATCH2_VER_NO_V=${CATCH2_VERSION#v} && \
     cmake -Bbuild -H. \
         -DBUILD_TESTING=OFF \
         -DCATCH_INSTALL_DOCS=OFF \
-        -DCATCH_INSTALL_EXTRAS=OFF \
         -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_CXX_FLAGS="-O2 -DNDEBUG" && \
     # Use parallel build with all available cores - critical for ARM64 speed \
